@@ -1,0 +1,136 @@
+---
+title: 'Reproducible Research: Peer Assessment 1'
+output:
+  html_document:
+    keep_md: yes
+  pdf_document: default
+  word_document: default
+---
+## Loading and preprocessing the data
+
+First of all, we load the data from the working directory and take a look on it.
+
+```{r}
+originalData<-read.table("activity.csv",header=TRUE,sep=",")
+head(originalData)
+```
+
+We now transform it into a suitable structure in order to answer the research questions. The new dataset will consist of 61 rows, each for a date of the original dataset, and the columns are the intervals.
+
+```{r}
+library(tidyr)
+tidy_data <- spread(originalData,key = interval, value = steps)
+dim(tidy_data)
+```
+
+## What is mean total number of steps taken per day?
+
+Below is the histogram of the total steps per day
+
+```{r}
+total_steps<-rowSums(tidy_data[,2:ncol(tidy_data)])
+total_steps_data <-data.frame(date=tidy_data$date,steps=total_steps)
+plot(total_steps_data$steps,xlab="day",ylab="Number of steps",type="h")
+```
+
+Now we compute the **mean** and **median** total number of steps taken per day
+```{r}
+mean(rowSums(tidy_data[,2:ncol(tidy_data)]),na.rm = TRUE)
+median(rowSums(tidy_data[,2:ncol(tidy_data)]),na.rm = TRUE)
+```
+
+## What is the average daily activity pattern?
+
+Time series plot of average number of total steps of all days per interval.
+```{r}
+ave_steps<-colMeans(tidy_data[,2:ncol(tidy_data)],na.rm = TRUE)
+plot(as.numeric(colnames(tidy_data)[2:ncol(tidy_data)]),ave_steps,xlab="interval",ylab="Number of steps",type = "l")
+```
+
+The interval on which average steps attain the maximum value.
+
+```{r}
+tb<-data.frame(as.numeric(colnames(tidy_data)[2:ncol(tidy_data)]),ave_steps)
+tb[which.max(tb[,2]),1]
+```
+## Imputing missing values
+
+In the next part, we fill NAs with mean total steps per day and do the same computations as the previous part.
+
+First, we compute the number of NAs in the dataset.
+```{r}
+sum(is.na(originalData))
+```
+
+Second, fill NAs (stpes) in the dataset with the **mean** steps per interval.
+Using the tidy_data dataset above, we use the following code to replace NAs with the Mean of each column.
+The new dataset is named by fillNAdata.
+
+```{r}
+fillNAdata<-tidy_data
+for(i in 2:ncol(fillNAdata)){
+    fillNAdata[,i][is.na(fillNAdata[,i])] <- mean(fillNAdata[,i], na.rm = TRUE)
+}
+```
+
+Next, we plot the histogram of total steps per day based on the fillNAdata dataset.
+
+```{r}
+steps<-rowSums(fillNAdata[,2:ncol(fillNAdata)])
+plot(steps, xlab = "day" ,ylab ="total steps" ,type = "h")
+```
+
+Mean and median total number of steps taken per day.
+
+```{r}
+mean(steps)
+median(steps)
+```
+In comparison with the computations on the previous dataset (remove NAs), the new mean and median are not much change in value. Especially, the mean is the same because we have used the mean to fill NAs. We can say that there is a very little impact of imputing NAs on the dataset. 
+
+## Are there differences in activity patterns between weekdays and weekends?
+
+Finally, we will add a new factor variable in the dataset with two levels – “weekday” and “weekend” indicating whether a given date is a weekday or weekend day and consider the difference between weekdays and weekends.
+
+The following code segment is for adding the new two-level factor.
+
+```{r}
+library(chron)
+addDaydata <- fillNAdata
+for (i in 1: nrow(addDaydata)){
+  addDaydata$day[i] <- is.weekend(as.Date(addDaydata$date[i]))
+  if(addDaydata$day[i]== T){
+    addDaydata$day[i] <-"weekend"
+  } 
+  else{
+    addDaydata$day[i] <-"weekday"
+  }
+}
+addDaydata <-as.data.frame(addDaydata)
+```
+
+We compute the averages of weekdays and weekends.
+
+```{r}
+library(tidyr)
+dt1<-subset(addDaydata,day=="weekday") 
+dt2<-subset(addDaydata,day=="weekend")
+weekday_average <- colMeans(dt1[2:(ncol(dt1)-1)])
+weekend_average <- colMeans(dt2[2:(ncol(dt1)-1)])
+```
+
+And then plot the panel plot of two cases.
+
+```{r}
+library(ggplot2)
+interval <-as.numeric(colnames(addDaydata)[2:(ncol(addDaydata)-1)])
+Final_dataset <- data.frame(interval,weekday_average,weekend_average)
+dt<- gather(Final_dataset, key="measure", value="value", c("weekday_average", "weekend_average"))
+ggplot(dt, aes(x=interval, y= value))+
+  geom_line(stat="identity")+
+  facet_wrap(~measure,nrow = 2)
+```
+
+Based on the plot, there is a great difference between two cases.
+The weekends's plot looks more similar a bell-shaped of normal distribution than the other one. This shows that the man/woman spends his/her spare time in weekends more frequently in activities than they do in weekdays.
+
